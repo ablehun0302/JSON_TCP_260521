@@ -20,11 +20,28 @@
 
 using namespace std;
 
-char SendBuffer[1024] = { 0, };
+char SendBuffer[HEADER_SIZE] = { 0, };
 char RecvBuffer[1024] = { 0, };
 
 bool IsRecvThreadRunning = true;
 bool IsSendThreadRunning = true;
+
+//유저 정보
+std::string NickName = "ablehun";
+const char PlayerIcon = 'A';
+//---------
+
+void GotoXY(int x, int y)
+{
+	// 1. 콘솔창의 출력 핸들(제어권)을 가져옵니다.
+	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	// 2. Windows에서 제공하는 좌표 구조체에 X, Y를 담습니다.
+	COORD pos = { static_cast<SHORT>(x), static_cast<SHORT>(y) };
+
+	// 3. 커서 위치를 변경합니다.
+	SetConsoleCursorPosition(output, pos);
+}
 
 unsigned WINAPI RecvThread(void* Argument)
 {
@@ -32,32 +49,41 @@ unsigned WINAPI RecvThread(void* Argument)
 
 	while (IsRecvThreadRunning)
 	{
-		unsigned short PacketSize = 0;
+		Header RecvHeader;
 
 		//header
-		int RecvBytes = recv(ServerSocket, (char*)&PacketSize, sizeof(PacketSize), MSG_WAITALL);
+		int RecvBytes = recv(ServerSocket, (char*)&RecvHeader, sizeof(RecvHeader), MSG_WAITALL);
 		if (RecvBytes <= 0)
 		{
 			cout << "recv fail " << endl;
 			break;
 		}
 
-		PacketSize = ntohs(PacketSize);
+		RecvHeader.PacketSize = ntohs(RecvHeader.PacketSize);
+		RecvHeader.PacketAmount = ntohs(RecvHeader.PacketAmount);
 
-		memset(RecvBuffer, 0, sizeof(RecvBuffer));
-		//data JSON
-		RecvBytes = recv(ServerSocket, RecvBuffer, PacketSize, MSG_WAITALL);
-		if (RecvBytes <= 0)
+		// 위치 넣기
+		system("cls");
+
+		for (int i = 0; i < RecvHeader.PacketAmount; i++)
 		{
-			cout << "recv fail " << endl;
-			break;
+			PosData RecvData;
+
+			RecvBytes = recv(ServerSocket, (char*)&RecvData, RecvHeader.PacketSize, MSG_WAITALL);
+			if (RecvBytes <= 0)
+			{
+				cout << "recv fail " << endl;
+				break;
+			}
+
+			RecvData.PosX = ntohs(RecvData.PosX);
+			RecvData.PosY = ntohs(RecvData.PosY);
+
+			GotoXY(RecvData.PosX, RecvData.PosY);
+			cout << RecvData.Icon;
 		}
+		cout << endl;
 
-		PosPacket Data;
-
-		Data.Parse(RecvBuffer);
-
-		cout << Data.UserID << " : (" << Data.PosX << ", " << Data.PosY << ")" << endl;
 	}
 
 
@@ -75,20 +101,23 @@ unsigned WINAPI SendThread(void* Argument)
 
 		//json 데이터 만들거야
 		ChatPacket Data;
-		Data.UserID = "ablehun";
+		Data.UserID = NickName;
+		Data.Icon = PlayerIcon;
 		Data.MoveCode = Keycode;
 
 		//json 문자열로 만들어줘
 		std::string JSONString = Data.ToString();
 
-		unsigned short PacketSize = (unsigned short)JSONString.length();
-		PacketSize = htons(PacketSize);
+		Header PacketHeader = { (int)JSONString.length(), 1 };
+		PacketHeader.PacketAmount = htons(PacketHeader.PacketAmount);
+		PacketHeader.PacketSize = htons(PacketHeader.PacketSize);
+		memcpy(SendBuffer, &PacketHeader, HEADER_SIZE);
 
 		//header -> json 크기만 보내봐라
-		SendAll(ServerSocket, (char*)&PacketSize, 2);
+		SendAll(ServerSocket, (const char*)&SendBuffer, HEADER_SIZE);
 
 		//Data -> json 보내라
-		SendAll(ServerSocket, JSONString.c_str(), ntohs(PacketSize));
+		SendAll(ServerSocket, JSONString.c_str(), ntohs(PacketHeader.PacketSize));
 	}
 
 	return 0;
@@ -108,7 +137,7 @@ int main()
 	SOCKADDR_IN ServerSockAddr;
 	memset(&ServerSockAddr, 0, sizeof(ServerSockAddr));
 	ServerSockAddr.sin_family = AF_INET;
-	ServerSockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	ServerSockAddr.sin_addr.s_addr = inet_addr("192.168.0.178");
 	ServerSockAddr.sin_port = htons(35000);
 
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));

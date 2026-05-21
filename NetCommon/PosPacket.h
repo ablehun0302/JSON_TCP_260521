@@ -7,7 +7,7 @@ public:
 	PosPacket();
 	~PosPacket();
 
-	std::string UserID;
+	std::string UserIcon;
 	int PosX;
 	int PosY;
 

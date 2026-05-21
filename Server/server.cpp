@@ -16,7 +16,8 @@
 using namespace std;
 
 char Buffer[1024] = { 0, };
-std::map<std::string, pair<int, int>> PlayerData;
+std::map<int, pair<int, int>> PlayerData;
+std::map<int, string> IconData;
 
 //blocking, synchrous, multiplexing(polling)
 int main()
@@ -91,8 +92,9 @@ int main()
 					//Data Receive
 
 					//header
-					unsigned short PacketSize = 0;
-					int RecvBytes = recv(ReadSockets.fd_array[i], (char*)&PacketSize, sizeof(PacketSize), MSG_WAITALL);
+					Header RecvHeader;
+
+					int RecvBytes = recv(ReadSockets.fd_array[i], (char*)&RecvHeader, sizeof(RecvHeader), MSG_WAITALL);
 
 					if (RecvBytes <= 0)
 					{
@@ -109,12 +111,13 @@ int main()
 						continue;
 					}
 
-					PacketSize = ntohs(PacketSize);
+					RecvHeader.PacketSize = ntohs(RecvHeader.PacketSize);
+					RecvHeader.PacketAmount = ntohs(RecvHeader.PacketAmount);
 
 					memset(Buffer, 0, sizeof(Buffer));
 
 					//data JSON
-					RecvBytes = recv(ReadSockets.fd_array[i], Buffer, PacketSize, MSG_WAITALL);
+					RecvBytes = recv(ReadSockets.fd_array[i], Buffer, (int)RecvHeader.PacketSize, MSG_WAITALL);
 					if (RecvBytes <= 0)
 					{
 						cout << "data recv fail " << endl;
@@ -135,7 +138,7 @@ int main()
 						memset(&ClientSockAddr, 0, sizeof(ClientSockAddr));
 						int ClientSockAddrLength = sizeof(ClientSockAddr);
 						//ip 알아내기
-						getpeername(ReadSockets.fd_array[i], (SOCKADDR*)&ClientSockAddr, &ClientSockAddrLength);
+						int PeerName = getpeername(ReadSockets.fd_array[i], (SOCKADDR*)&ClientSockAddr, &ClientSockAddrLength);
 
 						//이동 연산하기
 
@@ -143,10 +146,11 @@ int main()
 						Data.Parse(Buffer);
 
 						//플레이어 데이터가 없다면 추가하기
-						PlayerData.try_emplace(Data.UserID, pair<int, int>(0, 0));
+						PlayerData.try_emplace(PeerName, pair<int, int>(0, 0));
+						IconData.try_emplace(PeerName, Data.Icon);
 						//플레이어 기존 위치
-						int X = PlayerData[Data.UserID].first;
-						int Y = PlayerData[Data.UserID].second;
+						int X = PlayerData[PeerName].first;
+						int Y = PlayerData[PeerName].second;
 
 						//위치 이동
 						if (Data.MoveCode == "w" && Y > 0)
@@ -165,34 +169,46 @@ int main()
 						{
 							X--;
 						}
-						PlayerData[Data.UserID] = pair<int, int>(X, Y);
-						
-						//PosPacket에 대입
-						PosPacket SendData;
-						SendData.UserID = Data.UserID;
-						SendData.PosX = X;
-						SendData.PosY = Y;
+						//데이터 저장
+						IconData[PeerName] = Data.Icon;
+						PlayerData[PeerName] = pair<int, int>(X, Y);
 
-						//json으로 만들기
-						std::string SendJSON = SendData.ToString();
-						unsigned short SendLength = (unsigned short)SendJSON.length();
-						SendLength = htons(SendLength);
+						//위치 Header 만들기
+						Header PosHeader;
+						PosHeader.PacketAmount = IconData.size();
+						PosHeader.PacketSize = sizeof(PosData);
+						PosHeader.PacketAmount = htons(PosHeader.PacketAmount);
+						PosHeader.PacketSize = htons(PosHeader.PacketSize);
 
-						cout << "client(" << inet_ntoa(ClientSockAddr.sin_addr);
-						cout << ")" << SendJSON << " send" << endl;
-						
 						//모든 접속한 유저한테 전달
 						for (int j = 0; j < (int)ReadSockets.fd_count; ++j)
 						{
-							//자기꺼는 그냥 찍고 안 받으면 안되요?
-							//클라이언트에서는 처리 안함.
 							if (ReadSockets.fd_array[j] != ListenSocket)
 							{
 								//header
-								SendAll(ReadSockets.fd_array[j], (char*)&SendLength, 2);
+								SendAll(ReadSockets.fd_array[j], (char*)&PosHeader, sizeof(PosHeader));
+								
+								//플레이어 인원만큼 위치 데이터 전송
+								for (const auto& IconKvp : IconData)
+								{
+									//PosPacket에 대입
+									PosData SendData;
+									SendData.Icon = IconData[IconKvp.first][0];
+									SendData.PosX = PlayerData[IconKvp.first].first;
+									SendData.PosY = PlayerData[IconKvp.first].second;
 
-								//Data
-								SendAll(ReadSockets.fd_array[j], SendJSON.c_str(), ntohs(SendLength));
+									SendData.PosX = htons(SendData.PosX);
+									SendData.PosY = htons(SendData.PosY);
+
+									//debug
+									cout << "client(" << SendData.Icon;
+									cout << ") : " << ntohs(SendData.PosX) << ", " << ntohs(SendData.PosY) << " send" << endl;
+						
+
+									//Data
+									SendAll(ReadSockets.fd_array[j], (char*)&SendData, ntohs(PosHeader.PacketSize));
+									
+								}
 							}
 						}
 					}

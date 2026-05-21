@@ -3,7 +3,11 @@
 class ChatPacket : public IPacket
 {
 public:
+	ChatPacket();
+	~ChatPacket();
+
 	std::string UserID;
+	std::string Icon;
 	std::string MoveCode;
 
 	// Inherited via IPacket

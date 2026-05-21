@@ -1,9 +1,25 @@
 ﻿#pragma once
 #include "pch.h"
+
+#define HEADER_SIZE		8
+
 enum class PacketType
 {
 	Chat = 0,
 	Pos
+};
+
+struct Header
+{
+	unsigned int PacketSize;
+	unsigned int PacketAmount;
+};
+
+struct PosData
+{
+	char Icon;
+	int PosX;
+	int PosY;
 };
 
 class IPacket

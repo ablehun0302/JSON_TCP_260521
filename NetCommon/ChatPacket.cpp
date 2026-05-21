@@ -9,6 +9,14 @@
 //    "Gold" : 1000
 //}
 
+ChatPacket::ChatPacket()
+{
+}
+
+ChatPacket::~ChatPacket()
+{
+}
+
 PacketType ChatPacket::GetType()
 {
     return PacketType::Chat;
@@ -19,26 +27,16 @@ void ChatPacket::Parse(std::string InString)
     JSONDocument.Parse(InString.c_str());
 
     UserID = JSONDocument["UserID"].GetString();
+    Icon = JSONDocument["Icon"].GetString();
     MoveCode = JSONDocument["MoveCode"].GetString();
 }
 
 std::string ChatPacket::ToString()
 {
-    //무식하게 문자열 만들기
-    //std::stringstream Stream;
-
-    //Stream << "{";
-    //Stream << "\"UserID\" : ";
-    //Stream << "\"" << UserID << "\", ";
-    //Stream << "\"Message\" : ";
-    //Stream << "\"" << Message << "\", ";
-    //Stream << "\"Gold\" : ";
-    //Stream << Gold;
-    //Stream << "}";
-
     //JSONDocument를 문자열 변환 요청
     JSONDocument.SetObject();
     JSONDocument.AddMember("UserID", UserID, JSONDocument.GetAllocator());
+    JSONDocument.AddMember("Icon", Icon, JSONDocument.GetAllocator());
     JSONDocument.AddMember("MoveCode", MoveCode, JSONDocument.GetAllocator());
 
     rapidjson::StringBuffer Buffer;

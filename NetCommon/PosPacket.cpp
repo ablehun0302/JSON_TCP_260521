@@ -18,7 +18,7 @@ void PosPacket::Parse(std::string InString)
 {
     JSONDocument.Parse(InString.c_str());
 
-    UserID = JSONDocument["UserID"].GetString();
+    UserIcon = JSONDocument["UserIcon"].GetString();
     PosX = JSONDocument["PosX"].GetInt();
     PosY = JSONDocument["PosY"].GetInt();
 }
@@ -26,7 +26,7 @@ void PosPacket::Parse(std::string InString)
 std::string PosPacket::ToString()
 {
     JSONDocument.SetObject();
-    JSONDocument.AddMember("UserID", UserID, JSONDocument.GetAllocator());
+    JSONDocument.AddMember("UserIcon", UserIcon, JSONDocument.GetAllocator());
     JSONDocument.AddMember("PosX", PosX, JSONDocument.GetAllocator());
     JSONDocument.AddMember("PosY", PosY, JSONDocument.GetAllocator());
 
